@@ -1,0 +1,236 @@
+---
+title: "Homework 1"
+author: "Dmitry Panteleev"
+date: "2024-04-03"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+## Homework 1
+1. Make EDA for data (5 points).
+2. Build an ordination of objects using NMDS methods (descriptions, samples, etc.) (5 points).
+3. Visualise the relationship between the resulting ordination and environmental parameters with functions envfit() and ordisufr()(5 points).
+4. Draw conclusions about the most important factors (5 points).
+
+*Data sources**
+Trees on Barro Colorado (data from Condit et al. (2002), 'BCI' data, 'vegan' package).
+Backtick: `r ceiling(pi)`
+```{r}
+library(tidyr)
+library(dplyr)
+library(broom)
+
+library(tidyverse)
+
+library(ggmap)
+library(ggvegan)
+library(vegan)
+```
+
+Download the data of "Trees on Barro Colorado"
+
+```{r}
+data(BCI.env)
+data(BCI)
+```
+
+
+EDA
+
+```{r}
+
+name <- -1
+count <- -1
+
+for (i in colnames(BCI))
+{
+  sum_col <- sum(BCI[i])
+  name <- c(name, i)
+  count <- c(count, sum_col)
+  #sums <- sum(BCI)
+}
+
+name <- name[2:length(name)]
+count <- count[2:length(count)]
+df_count <- data.frame(name,count)
+
+ggplot(data=df_count, aes(x=name, y=count)) +
+  geom_col()
+
+sort(table(as.character(df_count$count)))
+
+df_remove <- df_count$name[df_count$count <= 3]
+
+df_new <- subset(BCI, select = ! (names(BCI) %in% df_remove)) 
+
+df_new$other <- rowSums(BCI[,df_remove])
+
+```
+
+
+```{r}
+
+colnames(BCI.env)
+env_BCI <- BCI.env[,c("Age.cat","Habitat","Stream")]
+print(is.factor(env_BCI$Habitat))
+
+print(levels(env_BCI$Habitat))
+print(levels(env_BCI$Age.cat))
+print(levels(env_BCI$Stream))
+```
+
+
+Build an ordination of objects using NMDS methods
+
+```{r}
+
+ord_BCI <- metaMDS(df_new, dist = "bray")
+
+ord_BCI_auto <- metaMDS(df_new, dist = "bray", autotransform = F)
+
+pal_col <- c("red","orange", "yellow", "green", "steelblue")
+pal_sh <- c(1, 2)
+
+
+ordiplot(ord_BCI_auto, type = "point")
+points(ord_BCI_auto, col = pal_col[env_BCI$Habitat], pch = pal_sh[env_BCI$Stream])
+
+ordiplot(ord_BCI_auto, type = "n")
+points(ord_BCI_auto, col = pal_col[env_BCI$Habitat], pch = pal_sh[env_BCI$Stream])
+```
+We have to use ord_BCI_auto because without autotransformation the stress is more than 0.2
+
+```{r}
+
+ordiplot(ord_BCI_auto, type = "n")
+points(ord_BCI_auto, col = pal_col[env_BCI$Habitat], pch = pal_sh[env_BCI$Stream])
+# Legend (example of relative and absolute positioning)
+legend("topleft", bty = "n",
+       title = "Habitat: ",
+       legend = levels(env_BCI$Habitat), col = pal_col, pch = 15)
+legend("topright", xjust = 1, yjust = 1,
+       title = "Stream: ",
+       legend = levels(env_BCI$Stream), col = "black", pch = pal_sh)
+```
+
+```{r}
+op <- par(mar = c(3, 3, 0.1, 0.1), mgp = c(2, 1, 0))
+ordiplot(ord_BCI_auto, type = "n")
+points(ord_BCI_auto, col = pal_col[env_BCI$Habitat], pch = pal_sh[env_BCI$Stream])
+legend("topleft", bty = "n",
+       title = "Habitat: ",
+       legend = levels(env_BCI$Habitat), col = pal_col, pch = 15)
+legend("topright", xjust = 1, yjust = 1,
+       title = "Stream: ",
+       legend = levels(env_BCI$Stream), col = "black", pch = pal_sh)
+text(ord_BCI_auto, display = "species", cex = 0.2, col = "grey20")
+par(op)
+```
+## Envfit 
+
+
+```{r}
+ef <- envfit(ord_BCI_auto, env_BCI)
+
+scores(ef, "vectors")
+
+ef$vectors
+ef$factors
+colnames(env_BCI)
+
+ordiplot(ord_BCI_auto, type = "n")
+points(ord_BCI_auto, col = pal_col[env_BCI$Habitat], pch = pal_sh[env_BCI$Stream])
+plot(ef, cex = 0.3)
+```
+I didn't get any vectors and I decided to change my variables from character to numeric
+```{r}
+levels(env_BCI$Habitat)
+
+df <- env_BCI
+
+df %>% mutate_if(is.factor, as.character) -> df
+class(df$Habitat)
+df['Habitat'][df['Habitat'] == 'Young'] <- 0
+df['Habitat'][df['Habitat'] == 'Swamp'] <- 1
+df['Habitat'][df['Habitat'] == 'OldSlope'] <- 2
+df['Habitat'][df['Habitat'] == 'OldLow'] <- 3
+df['Habitat'][df['Habitat'] == 'OldHigh'] <- 4
+
+df['Stream'][df['Stream'] == 'No'] <- 0
+df['Stream'][df['Stream'] == 'Yes'] <- 1
+
+df['Age.cat'][df['Age.cat'] == 'c2'] <- 0
+df['Age.cat'][df['Age.cat'] == 'c3'] <- 1
+
+df$Habitat_f <- as.factor(df$Habitat)
+levels(df$Habitat_f)
+
+df$Stream_f <- as.factor(df$Stream)
+levels(df$Stream_f)
+
+df$Age.cat_f <- as.factor(df$Age.cat)
+levels(df$Age.cat_f)
+
+
+ef <- envfit(ord_BCI_auto, df[,c("Habitat_f", "Stream_f")])
+
+scores(ef, "vectors")
+
+ef$vectors
+ef$factors
+colnames(env_BCI)
+
+ordiplot(ord_BCI_auto, type = "n")
+points(ord_BCI_auto, col = pal_col[env_BCI$Habitat], pch = pal_sh[env_BCI$Stream])
+plot(ef, cex = 0.3)
+
+
+```
+And here I didn't get vectors. I understood a problem, i need to use continuous variables:
+
+```{r}
+
+ef <- envfit(ord_BCI_auto, BCI.env[,c("EnvHet","UTM.NS","UTM.EW")])
+
+scores(ef, "vectors")
+levels(BCI.env$EnvHet)
+
+ef$vectors
+ef$factors
+
+ordiplot(ord_BCI_auto, type = "n")
+points(ord_BCI_auto, col = pal_col[env_BCI$Habitat], pch = pal_sh[env_BCI$Stream])
+plot(ef, cex = 0.5)
+```
+
+
+Ordisurf:
+
+```{r}
+class(df$Habitat)
+df$Habitat <- as.numeric(df$Habitat)
+df$Age.cat <- as.numeric(df$Age.cat)
+df$Stream <- as.numeric(df$Stream)
+
+par(mfrow = c(1, 2))
+os_EnvHet <- ordisurf(ord_BCI_auto, BCI.env$EnvHet, method = "REML")
+os_UTM.NS <- ordisurf(ord_BCI_auto, BCI.env$UTM.NS, method = "REML")
+os_UTM.EW <- ordisurf(ord_BCI_auto, BCI.env$UTM.EW, method = "REML")
+os_EnvHet <- ordisurf(ord_BCI_auto, df$Habitat, method = "REML")
+os_UTM.NS <- ordisurf(ord_BCI_auto, df$Stream, method = "REML")
+os_UTM.EW <- ordisurf(ord_BCI_auto, df$Age.cat, method = "REML")
+
+par(mfrow = c(1, 1))
+
+
+```
+# The result of these vectors:
+1) EnvHet and UTM.EW have a strong positive correlation
+2) Two factors (EnvHet, UTM.EW) have a moderate negative correlation with UTM.NS
+
+The most strong environmental factor is UTM.EW 
+
+# The result of surface plots 
+
+We can see the complex non-linear impact of different factors on the amount of trees except UTM.EW, at this plot we can see approximate linear relationship
