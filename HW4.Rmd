@@ -1,0 +1,60 @@
+---
+title: "HW4"
+author: "Dmitry Panteleev"
+date: "2024-05-13"
+output: html_document
+---
+
+You have been provided with data to assess the effects of grazing on the zoobenthos of rivers on the island of Tasmania. You need to identify which external factors have the greatest influence on changes in the composition of flora and fauna
+
+
+
+```{r message=FALSE, warning=FALSE}
+library(readxl)
+library(vegan)
+library(ggvegan)
+
+
+```
+
+```{r}
+zoo_e <- read_xls(path = "Grazing_Magierowski_et_al_2015.xls", sheet = "env")
+zoo_f <- read_xls(path = "Grazing_Magierowski_et_al_2015.xls", sheet = "fauna")
+```
+
+```{r}
+zoo_e <- na.omit(zoo_e)
+zoo_f <- na.omit(zoo_f)
+
+
+zoo_f = zoo_f[zoo_f$SITE %in% zoo_e$SITE,]
+
+zoo_cca <- cca(zoo_f[,-1] ~., data=zoo_e[,-1])
+
+```
+
+```{r}
+vif.cca(zoo_cca)
+summary(zoo_cca)
+
+plot(zoo_cca, scaling = "sites",
+     main = "scaling 1,'sites' ")
+plot(zoo_cca, scaling = 2, 
+     display = c("species", "cn"), 
+     main = "biplot cca, scaling 2")
+
+```
+At plots we can see some groups of effect that can impact on changing of flora and fauna(like Regulation, Abstraction, or pH, average algae cover), and also can notice distinct factor like "average turbidity".
+```{r message=FALSE, warning=FALSE}
+anova(zoo_cca)
+```
+```{r}
+anova(zoo_cca, by="term")
+```
+```{r}
+anova(zoo_cca, by="mar")
+```
+
+We can see the significant external factor that has an impact on the proportion of flora and fauna: Abstraction, Regulation, Grazing, Tempreture, average turbidity, Conductivity, DRP, Nitrate+Nitrite.
+
+The most powerful factor is Abstraction.

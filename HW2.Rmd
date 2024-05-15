@@ -1,0 +1,152 @@
+---
+title: "HW2"
+author: "Dmitry Panteleev"
+date: "2024-05-11"
+output: html_document
+---
+
+1.  (10 points) For the group from golub's article, experiment with clustering methods:
+ -- try different distance metrics (at least 3 types)
+ -- then for all distance matrices, test 4 clustering methods and evaluate its quality using coefficient correlation (it is better to automate this process through a function).
+2. (10 points) Compare the clustering results with real data and for the best method make a bootstrap (50-100 repetitions).
+3. (10 points) Draw meaningful biological conclusions from the data presented
+
+
+```{r}
+library(glue)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+library(golubEsets)
+library(dplyr)
+library(vegan)
+library(ggplot2)
+library(gridExtra)
+library(ape)
+library(dendextend)
+library(pvclust)
+library(tibble)
+```
+
+```{r }
+data(Golub_Merge)
+#Data to work with
+golub <- data.frame(Golub_Merge)[1:7129]
+#group vector to check
+types_of_cancer <- Golub_Merge$ALL.AML
+
+```
+
+# Practical part
+
+## experiment with clustering methods
+
+```{r}
+rownames(golub) <- paste(rownames(golub),types_of_cancer, sep=" ")
+```
+
+
+ 
+### QC
+
+```{r}
+G_mean <- colMeans(golub) %>% as_tibble() %>% arrange(value)
+
+ggplot(G_mean, aes(x=value))+geom_density()+xlab(label = "Mean_of_raw_data")+ xlim(-5000, 5000)
+```
+```{r}
+dist_eucl <- vegdist(golub, method = "euclidean")
+dist_manh <- vegdist(golub, method = "manhattan")
+dist_canb <- vegdist(golub, method = "canberra")
+```
+
+
+```{r}
+distance <- data.frame(eucl = as.numeric(dist_eucl), manh = as.numeric(dist_manh), canb = as.numeric(dist_canb))
+```
+
+```{r}
+Pl_hist <- ggplot(distance) + geom_density()
+
+Pl_eucl<- Pl_hist + aes(x = eucl)  + labs(x = "euclidean distance")
+
+Pl_manh <- Pl_hist + aes(x = manh) + labs(x = "manhattan distance")
+
+Pl_canb <- Pl_hist + aes(x = canb) + labs(x = "canberra distance")
+
+
+grid.arrange(Pl_eucl,Pl_manh,Pl_canb)
+```
+
+
+
+## The Function 
+
+test 4 clustering methods and evaluate its quality using coefficient correlation
+
+```{r}
+
+plot_phulo <- function(d)
+{
+  hc_single <- hclust(d, method = "single")
+  ph_single <- as.phylo(hc_single)
+  plot(ph_single, type = "phylogram", cex=0.5, main="single")
+  
+  
+  cof_d <- cophenetic(ph_single)
+  s_cor <- cor(d, as.dist(cof_d))
+  print(glue('cor: {s_cor}, method = "single"'))
+  
+  hc_compl <- hclust(d, method = "complete")
+  ph_compl <- as.phylo(hc_compl)
+  plot(ph_compl, type = "phylogram", cex=0.5, main="complete")
+  
+  cof_d <- cophenetic(ph_compl)
+  s_cor <- cor(d, as.dist(cof_d))
+  print(glue('cor: {s_cor}, method = "complete"'))
+  
+  hc_w2 <-hclust(d, method = "ward.D2")
+  ph_w2 <- as.phylo(hc_w2)
+  plot(ph_w2, type = "phylogram", cex=0.5, main="ward.D2")
+  
+  cof_d <- cophenetic(ph_w2)
+  s_cor <- cor(d, as.dist(cof_d))
+  print(glue('cor: {s_cor}, method = "ward.D2"'))
+  
+  
+  hc_av <-hclust(d, method = "average")
+  ph_av <- as.phylo(hc_av)
+  plot(ph_av, type = "phylogram", cex=0.5, main="average")
+  
+  cof_d <- cophenetic(ph_av)
+  s_cor <- cor(d, as.dist(cof_d))
+  print(glue('cor: {s_cor}, method = "average"'))
+}
+#
+```
+```{r}
+plot_phulo(dist_eucl)
+```
+```{r}
+plot_phulo(dist_manh)
+
+```
+```{r}
+plot_phulo(dist_canb)
+```
+
+
+
+We can see that the best result (coefficient correlation between real distance and the result of clustering, ~0.82) showed the clustering method using the average method with euclidean distance metrics. 
+
+
+
+```{r}
+cl_boot <- pvclust(t(golub), method.hclust = "average", nboot = 50, method.dist = "euclidean", parallel = TRUE, iseed = 42)
+plot(cl_boot)
+```
+
+
+The bootstrap and p-value differ significantly in different steps on the dendrogram. Bootstrap values are pretty low that is why we can doubt about our result, because our result is not stable.   
+Also, we do not see certain differences between these types of cancer on the phylogenetic graph, because some of the samples are located inside the tree of a cancer that is not similar to themю

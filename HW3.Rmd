@@ -1,0 +1,300 @@
+---
+title: "HW3"
+author: "Dmitry Panteleev"
+date: "2024-05-13"
+output: html_document
+---
+
+Data on lizard hematology were collected from September through November 2010 at few sites with varying degrees of anthropogenic landscape modification (data in file Sleepy lizard.xlsx, sheet "data").
+In the unmodified landscape (Treatment 1), samples were collected in one BS0 study area (Landscape.ID 1). 
+In the heavily modified landscape (Treatment 2), samples were collected in three different neighborhoods (Landscape.ID 1 - LS1, 3 - LS2, 5 - LS3).
+
+Only in the heavily modified landscape in each neighborhood were sites categorized into groups based on habitat type 
+(Habitat: remnants of natural vegetation, swale plantings, fields with crops or under fallow) and the degree of connectivity with patches of natural vegetation (Connectivity: low < 63%, medium 63-88%, high 88%; fully connected sites).
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(readxl)
+library(vegan)
+library(ggplot2)
+library(plotly)
+library(impute)
+library(factoextra)
+theme_set(theme_bw())
+```
+
+```{r}
+lizard<-read_excel(path ="lizard.xlsx")
+```
+```{r}
+colnames(lizard)
+
+# Columns that will be investigated in our study. 
+
+nes_cols <- c("Tot_WBC","Het_ABS","Lym_ABS","H:L Ratio","Mon_ABS","OthG_ABS")
+```
+
+```{r}
+lizard$Treatment<-as.factor(lizard$Treatment)
+lizard$Habitat<-as.factor(lizard$Habitat)
+lizard$Connectivity<-as.factor(lizard$Connectivity)
+```
+
+```{r}
+lizard<-lizard[-c(3)]
+```
+
+
+We need to find a difference between quantitative parameters and environmental characteristics for each task. For this purpose, we can use the perMANOVA test because our data is multidimensional. It is more comfortable method than MANOVA because haven't some prerequisites. 
+
+
+
+### Exploratory step of continious data  
+
+```{r}
+boxplot(lizard[nes_cols])
+```
+
+### Log transformation and centralizing
+
+```{r}
+log_lizard <- log(lizard[nes_cols]+1)
+
+center <- function(x){
+  x - mean(x, na.rm = TRUE)
+}
+
+
+lz_cent <- t(apply(log_lizard, 1, center))
+
+center_log_lizard <- apply(t(lz_cent), 1, center)
+
+boxplot(center_log_lizard)
+
+```
+
+Equality of variance in groups is necessary for perMANOVA. 
+
+
+```{r}
+dist_lizard <- vegdist(center_log_lizard, method  = "euclidean")
+PCO_lizard <- betadisper(dist_lizard, lizard$Treatment)
+plot(PCO_lizard)
+anova(PCO_lizard)
+
+```
+
+
+Ho is true. The variances of groups are equal. 
+
+
+## Task 1
+
+
+### a: 
+
+Does the blood composition of lizards from unmodified and heavily modified landscapes differ?
+
+Check equality of variance:
+
+```{r}
+dist_lizard <- vegdist(center_log_lizard, method  = "euclidean")
+PCO_lizard <- betadisper(dist_lizard, lizard$Treatment)
+plot(PCO_lizard)
+anova(PCO_lizard)
+
+```
+
+Ho is true. The variances of groups are equal. 
+
+```{r}
+permanova_lizard <- adonis2(center_log_lizard ~ lizard$Treatment, method = "euclidean")
+permanova_lizard
+```
+
+Answer: 
+Yes, we have the difference in the the blood composition of lizards from unmodified and heavily modified landscapes.
+
+We have only 2 groups that is why we don't need to perform a post hoc test.
+
+
+### b: 
+
+Check whether blood composition of lizards in different habitats differs between lizards from the highly modified landscape.
+
+df with only samples from the highly modified landscape:
+
+```{r}
+lizard_2 <- lizard[lizard$Treatment == 2,]
+```
+
+```{r}
+log_lizard <- log(lizard_2[nes_cols]+1)
+
+center <- function(x){
+  x - mean(x, na.rm = TRUE)
+}
+
+
+lz_cent <- t(apply(log_lizard, 1, center))
+
+center_log_lizard <- apply(t(lz_cent), 1, center)
+
+boxplot(center_log_lizard)
+
+```
+
+Check equality of variance:
+
+```{r}
+dist_lizard <- vegdist(center_log_lizard, method  = "euclidean")
+PCO_lizard <- betadisper(dist_lizard, lizard_2$Habitat)
+plot(PCO_lizard)
+anova(PCO_lizard)
+
+```
+
+Ho is true. The variances of groups are equal. 
+
+```{r}
+permanova_lizard <- adonis2(center_log_lizard ~ lizard_2$Habitat, method = "euclidean")
+permanova_lizard
+```
+Answer: 
+No, we have the difference in the the blood composition of lizards in different habitats between lizards from the highly modified landscape.
+
+That is why we don't need to perform a post hoc test.
+
+### c
+
+Test whether the degree of connectivity affects the blood composition of lizards from the highly modified landscape.
+
+df with only samples from the highly modified landscape:
+
+```{r}
+lizard_2 <- lizard[lizard$Treatment == 2,]
+```
+
+```{r}
+log_lizard <- log(lizard_2[nes_cols]+1)
+
+center <- function(x){
+  x - mean(x, na.rm = TRUE)
+}
+
+
+lz_cent <- t(apply(log_lizard, 1, center))
+
+center_log_lizard <- apply(t(lz_cent), 1, center)
+
+boxplot(center_log_lizard)
+
+```
+
+Check equality of variance:
+
+```{r}
+dist_lizard <- vegdist(center_log_lizard, method  = "euclidean")
+PCO_lizard <- betadisper(dist_lizard, lizard_2$Connectivity)
+plot(PCO_lizard)
+anova(PCO_lizard)
+
+```
+
+Ho is true. The variances of groups are equal. 
+
+```{r}
+permanova_lizard <- adonis2(center_log_lizard ~ lizard_2$Connectivity, method = "euclidean")
+permanova_lizard
+```
+Answer: 
+No, we haven't the difference in the the blood composition of lizards in different habitats between lizards from the highly modified landscape.
+
+That is why we don't need to perform a post hoc test.
+
+## Task 2 
+
+### d
+
+Whether the blood composition of lizards from a highly modified landscape is affected by habitat type and degree of connectivity.
+
+I decided to create new column with data from treatment, habitat and degree of connectivity columns simulteniously. 
+
+```{r}
+colnames(lizard)
+```
+
+```{r}
+cols = c("Treatment","Habitat","Connectivity")
+
+lizard$gen_col_T_H_C <- do.call(paste, c(lizard[cols], sep = "_")) 
+```
+
+```{r}
+log_lizard <- log(lizard[nes_cols]+1)
+
+center <- function(x){
+  x - mean(x, na.rm = TRUE)
+}
+
+
+lz_cent <- t(apply(log_lizard, 1, center))
+
+center_log_lizard <- apply(t(lz_cent), 1, center)
+
+boxplot(center_log_lizard)
+
+```
+
+Check equality of variance:
+
+```{r}
+dist_lizard <- vegdist(center_log_lizard, method  = "euclidean")
+PCO_lizard <- betadisper(dist_lizard, lizard$gen_col_T_H_C)
+plot(PCO_lizard)
+anova(PCO_lizard)
+
+```
+
+Ho is true. The variances of groups are equal. 
+
+```{r}
+permanova_lizard <- adonis2(center_log_lizard ~ lizard$gen_col_T_H_C, method = "euclidean")
+permanova_lizard
+```
+Answer: 
+Yes, we have the difference in the the blood composition of lizards, however, in this case there are multiple groups that are compared that is why we have to perform a post hoc test and adjust p value:
+
+
+```{r}
+pairwise_permanova <- function(dat, group, strata = NULL, ...){
+  pair <- combn(unique(as.character(group)), 2)
+  ncomb <- ncol(pair)
+  res <- rep(NA, ncomb)
+  for (i in 1:ncomb) {
+    filter <- group %in% pair[, i]
+    if(is.null(strata)){
+      posthoc <- adonis(dat[filter, ] ~ group[filter], ...)$aov.tab$Pr[1]
+    } else {
+      posthoc <- adonis(dat[filter, ] ~ group[filter], 
+                        strata = strata[filter], ...)$aov.tab$Pr[1]
+    }
+    res[i] <- posthoc
+    names(res)[i] <- paste(pair[, i], collapse = " vs. ")
+  }
+  return(res)
+}
+```
+
+```{r warning=FALSE}
+p_vals <- pairwise_permanova(
+  dat = center_log_lizard, group = lizard$gen_col_T_H_C, 
+  method = "euclidean", permutations=99999)
+p_vals
+```
+
+```{r}
+p.adjust(p_vals, method = "holm")
+```
+We got comparisons between all groups that our samples were divided by Treatment(first digit), Habitat(second digit), Connectivity(third digit). Multiple comparisons are considered in the adj p-value. Using it we can understand where we have difference or not.
